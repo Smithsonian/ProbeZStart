@@ -1,0 +1,166 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.6">
+  <POU Name="MAIN" Id="{0d52fe34-3379-4937-8bfa-de5557a85529}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR
+	axisX		: AXIS_REF;
+	axisY		: AXIS_REF;
+	fbXPower	: MC_Power;
+	fbYPower	: MC_Power;
+	fbXMoveAbs	: MC_MoveAbsolute;
+	fbYMoveAbs	: MC_MoveAbsolute;
+	
+	bXEnable	: BOOL := FALSE;
+	bYEnable	: BOOL := FALSE;
+	bXMove		: BOOL := FALSE;
+	bYMove		: BOOL := FALSE;
+	
+	fXTargetPos	: LREAL := 0;
+	fYTargetPos : LREAL := 0;
+	fXTargetVel : LREAL := 360;
+	fYTargetVel : LREAL := 360;
+	
+	inputXPos	: LREAL := 0;
+	inputYPos	: LREAL := 0;
+	
+	state		: INT := 0;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[axisX.ReadStatus();
+axisY.ReadStatus();
+
+CASE state OF
+0: // init
+	bXEnable := FALSE;
+	bXMove := FALSE;
+	state := 1;
+1: // enable power to axes
+	bXEnable := TRUE;
+	bYEnable := TRUE;
+	IF fbXPower.Status = TRUE AND fbYPower.Status THEN
+		state := 2;
+	END_IF
+2: // set up move
+	IF fXTargetPos <> inputXPos OR fYTargetPos <> inputYPos THEN
+		fXTargetPos := inputXPos;
+		fYTargetPos := inputYPos;
+		bXMove := TRUE;
+		bYMove := TRUE;
+		state := 3;
+	END_IF
+3: // moving
+	IF fbXMoveAbs.Done = TRUE AND fbYMoveAbs.Done = TRUE THEN
+		bXMove := FALSE;
+		bYMove := FALSE;
+		state := 2;
+	END_IF
+
+END_CASE
+
+fbXPower(
+	Axis := axisX,
+	Enable := bXEnable,
+	Enable_Positive := bXEnable,
+	Enable_Negative := bXEnable,
+	Override := 100,
+	BufferMode:= ,
+	Options:= ,
+	Status=> ,
+	Busy=> ,
+	Active=> ,
+	Error=> ,
+	ErrorID=> );
+	
+fbYPower(
+	Axis := axisY,
+	Enable := bYEnable,
+	Enable_Positive := bYEnable,
+	Enable_Negative := bYEnable,
+	Override := 100,
+	BufferMode:= ,
+	Options:= ,
+	Status=> ,
+	Busy=> ,
+	Active=> ,
+	Error=> ,
+	ErrorID=> );
+	
+fbXMoveAbs(
+	Axis:= axisX,
+	Execute:= bXMove,
+	Position:= fXTargetPos,
+	Velocity:= fXTargetVel,
+	Acceleration:= ,
+	Deceleration:= ,
+	Jerk:= ,
+	BufferMode:= ,
+	Options:= ,
+	Done=> ,
+	Busy=> ,
+	Active=> ,
+	CommandAborted=> ,
+	Error=> ,
+	ErrorID=> );
+	
+fbYMoveAbs(
+	Axis:= axisY,
+	Execute:= bYMove,
+	Position:= fYTargetPos,
+	Velocity:= fYTargetVel,
+	Acceleration:= ,
+	Deceleration:= ,
+	Jerk:= ,
+	BufferMode:= ,
+	Options:= ,
+	Done=> ,
+	Busy=> ,
+	Active=> ,
+	CommandAborted=> ,
+	Error=> ,
+	ErrorID=> );
+]]></ST>
+    </Implementation>
+    <LineIds Name="MAIN">
+      <LineId Id="205" Count="1" />
+      <LineId Id="208" Count="0" />
+      <LineId Id="137" Count="0" />
+      <LineId Id="143" Count="2" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="146" Count="0" />
+      <LineId Id="149" Count="0" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="189" Count="2" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="209" Count="1" />
+      <LineId Id="260" Count="0" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="199" Count="1" />
+      <LineId Id="193" Count="0" />
+      <LineId Id="201" Count="0" />
+      <LineId Id="224" Count="0" />
+      <LineId Id="195" Count="1" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="30" Count="4" />
+      <LineId Id="36" Count="5" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="227" Count="0" />
+      <LineId Id="229" Count="11" />
+      <LineId Id="228" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="44" Count="5" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="51" Count="7" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="243" Count="14" />
+      <LineId Id="242" Count="0" />
+      <LineId Id="68" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
