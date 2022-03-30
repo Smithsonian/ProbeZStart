@@ -4,6 +4,7 @@
     <Declaration><![CDATA[PROGRAM MAIN
 VAR
 	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
 	state: XY_Stage_State; (* XY Stage State *)
 	
 	// motor variables
@@ -21,18 +22,22 @@ VAR
 	bMove		: BOOL := FALSE;
 	fXTargetPos	: LREAL := 0;
 	fYTargetPos : LREAL := 0;
-	fXTargetVel : LREAL := 360;
-	fYTargetVel : LREAL := 360;
+	fXTargetVel : LREAL := 1;
+	fYTargetVel : LREAL := 1;
 	
 	// inputs
+	{attribute 'OPC.UA.DA' := '1'}
+	inputEnableDrive	: BOOL := FALSE;
+	{attribute 'OPC.UA.DA' := '1'}
+	inputResetDrive		: BOOL := FALSE;
 	{attribute 'OPC.UA.DA' := '1'}
 	inputXPos	: LREAL := 0;
 	{attribute 'OPC.UA.DA' := '1'}
 	inputYPos	: LREAL := 0;
 	{attribute 'OPC.UA.DA' := '1'}
-	inputXVel	: LREAL := 360;
+	inputXVel	: LREAL := 10;
 	{attribute 'OPC.UA.DA' := '1'}
-	inputYVel	: LREAL := 360;
+	inputYVel	: LREAL := 10;
 	
 	// outputs
 	{attribute 'OPC.UA.DA' := '1'}
@@ -69,14 +74,32 @@ VAR
 END_VAR
 ]]></Declaration>
     <Implementation>
-      <ST><![CDATA[axisX.ReadStatus();
+      <ST><![CDATA[// read drive status
+axisX.ReadStatus();
 axisY.ReadStatus();
 
-// process input & output variables
-// these limits taken from Drive Manager
-inputXVel := MIN(inputXVel, 6744);
-inputYVel := MIN(inputYVel, 6744);
+// check for errors
+IF axisX.Status.Error = TRUE OR axisY.Status.Error = TRUE OR
+	fbXPower.Error = TRUE OR fbYPower.Error = TRUE OR
+	fbXMoveAbs.Error = TRUE OR fbYMoveAbs.Error = TRUE THEN
+	XErrorCode := MAX(axisX.Status.ErrorID, fbXPower.ErrorID, fbXMoveAbs.ErrorID);
+	YErrorCode := MAX(axisY.Status.ErrorID, fbYPower.ErrorID, fbYMoveAbs.ErrorID);
+	state := XY_Stage_State.error;
+END_IF
 
+// process inputs
+// these limits taken from Drive Manager
+inputXVel := MIN(inputXVel, 93.6);
+inputYVel := MIN(inputYVel, 93.6);
+
+// turn off if commanded
+IF inputEnableDrive = FALSE THEN
+	state := XY_Stage_State.off;
+ELSIF inputResetDrive = TRUE THEN // check for reset
+	state := XY_Stage_State.reset;
+END_IF
+
+// extract outputs
 XPos := axisX.NcToPlc.ActPos;
 YPos := axisY.NcToPlc.ActPos;
 XVel := axisX.NcToPlc.ActVelo;
@@ -86,30 +109,27 @@ YLag := axisY.NcToPlc.PosDiff;
 XLagMax := MAX(ABS(XLag), XLagMax);
 YLagMax := MAX(ABS(YLag), YLagMax);
 
-IF axisX.Status.Error = TRUE OR axisY.Status.Error = TRUE OR
-	fbXPower.Error = TRUE OR fbYPower.Error = TRUE OR
-	fbXMoveAbs.Error = TRUE OR fbYMoveAbs.Error = TRUE THEN
-	XErrorCode := MAX(axisX.Status.ErrorID, fbXPower.ErrorID, fbXMoveAbs.ErrorID);
-	YErrorCode := MAX(axisY.Status.ErrorID, fbYPower.ErrorID, fbYMoveAbs.ErrorID);
-	state := XY_Stage_State.error;
-END_IF
-
+// state machine
 CASE state OF
 XY_Stage_State.off: // init (power off)
 	bReset := FALSE;
 	bXEnable := FALSE;
 	bYEnable := FALSE;
 	bMove := FALSE;
+	IF inputEnableDrive = TRUE THEN
+		state := XY_Stage_State.reset;
+	END_IF
 XY_Stage_State.reset: // reset & enable power to axes
 	bReset := TRUE;
-	bXEnable := FALSE; // FIX temporary
+	bXEnable := TRUE;
 	bYEnable := TRUE;
+	bMove := FALSE;
 	XErrorCode := 0;
 	YErrorCode := 0;
 	IF fbXReset.Done = TRUE AND fbYReset.Done = TRUE AND
-		// FIX fbXPower.Status = TRUE AND fbYPower.Status = TRUE THEN
-		fbYPower.Status = TRUE THEN
+		fbXPower.Status = TRUE AND fbYPower.Status = TRUE THEN
 		bReset := FALSE;
+		inputResetDrive := FALSE; // only reset once
 		state := XY_Stage_State.ready;
 	END_IF
 XY_Stage_State.ready: // set up move
@@ -120,13 +140,12 @@ XY_Stage_State.ready: // set up move
 	bMove := TRUE;
 	state := XY_Stage_State.moving;
 XY_Stage_State.moving: // moving
-	// FIX IF fbXMoveAbs.Done = TRUE AND fbYMoveAbs.Done = TRUE THEN
-	IF fbYMoveAbs.Done = TRUE THEN
+	IF fbXMoveAbs.Done = TRUE AND fbYMoveAbs.Done = TRUE THEN
 		bMove := FALSE;
 		state := XY_Stage_State.ready;
 	END_IF
 XY_Stage_State.error: // error
-	RETURN; // lock into this state
+	RETURN; // lock into this state until reset
 END_CASE
 
 // function blocks, execution controlled by their execute bits
@@ -165,22 +184,28 @@ fbYMoveAbs(
 ]]></ST>
     </Implementation>
     <LineIds Name="MAIN">
+      <LineId Id="457" Count="0" />
       <LineId Id="205" Count="1" />
-      <LineId Id="300" Count="1" />
-      <LineId Id="410" Count="0" />
-      <LineId Id="409" Count="0" />
-      <LineId Id="411" Count="0" />
-      <LineId Id="407" Count="0" />
-      <LineId Id="263" Count="0" />
-      <LineId Id="366" Count="5" />
-      <LineId Id="373" Count="0" />
-      <LineId Id="387" Count="0" />
+      <LineId Id="458" Count="0" />
+      <LineId Id="300" Count="0" />
       <LineId Id="386" Count="0" />
       <LineId Id="403" Count="1" />
       <LineId Id="388" Count="0" />
       <LineId Id="402" Count="0" />
       <LineId Id="405" Count="0" />
       <LineId Id="389" Count="0" />
+      <LineId Id="444" Count="4" />
+      <LineId Id="471" Count="0" />
+      <LineId Id="461" Count="0" />
+      <LineId Id="464" Count="0" />
+      <LineId Id="469" Count="0" />
+      <LineId Id="465" Count="0" />
+      <LineId Id="467" Count="0" />
+      <LineId Id="466" Count="0" />
+      <LineId Id="459" Count="0" />
+      <LineId Id="449" Count="7" />
+      <LineId Id="440" Count="0" />
+      <LineId Id="436" Count="0" />
       <LineId Id="208" Count="0" />
       <LineId Id="137" Count="0" />
       <LineId Id="143" Count="0" />
@@ -188,15 +213,17 @@ fbYMoveAbs(
       <LineId Id="144" Count="0" />
       <LineId Id="308" Count="0" />
       <LineId Id="320" Count="0" />
+      <LineId Id="472" Count="2" />
       <LineId Id="146" Count="0" />
       <LineId Id="326" Count="0" />
       <LineId Id="149" Count="0" />
       <LineId Id="216" Count="0" />
+      <LineId Id="441" Count="0" />
       <LineId Id="412" Count="1" />
       <LineId Id="189" Count="0" />
       <LineId Id="329" Count="0" />
-      <LineId Id="337" Count="0" />
       <LineId Id="406" Count="0" />
+      <LineId Id="435" Count="0" />
       <LineId Id="190" Count="1" />
       <LineId Id="154" Count="0" />
       <LineId Id="210" Count="0" />
@@ -205,7 +232,6 @@ fbYMoveAbs(
       <LineId Id="214" Count="1" />
       <LineId Id="200" Count="0" />
       <LineId Id="193" Count="0" />
-      <LineId Id="338" Count="0" />
       <LineId Id="224" Count="0" />
       <LineId Id="195" Count="1" />
       <LineId Id="384" Count="1" />
