@@ -5,11 +5,15 @@ Control the Parker XY stage w/ TwinCAT & OPC-UA
 
 ## Drive Parameters ##
 Drives set up with 5mm drive pitch, maximum travel of +/- 75mm
+
 Lag monitor set to disable drive with error if tracking error exceeds 0.1mm
+
 Other motor and drive parameters default for Beckhoff AM8132-0JH0 motor + EL7221 drive
+
 Maximum allowed velocity is 93.6 mm/s
 
 X-axis encoder set for -25.4mm offset to center the stage
+
 Y-axis to be calibrated
 
 ## OPC-UA ##
