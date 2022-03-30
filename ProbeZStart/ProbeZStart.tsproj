@@ -1471,6 +1471,11 @@ External Setpoint Generation:
 	</ImageDatas>
 	<Project ProjectGUID="{D00BF761-EB8C-4EB5-B147-B99B6AE5D90D}" TargetNetId="192.168.1.235.1.1" ShowHideConfigurations="#x106">
 		<System>
+			<Licenses>
+				<Target>
+					<ManualSelect>{BDCC0070-42D5-49AE-ABF1-1D4434813D60}</ManualSelect>
+				</Target>
+			</Licenses>
 			<Tasks>
 				<Task Id="5" Priority="20" CycleTime="100000" AmsPort="350" AdtTasks="true">
 					<Name>PlcTask</Name>
@@ -2083,7 +2088,7 @@ External Setpoint Generation:
 			</NC>
 		</Motion>
 		<Plc>
-			<Project GUID="{6CE991D0-B9B5-43AA-8E0E-BD1DFA7FDA4D}" Name="ProbeZPlc" PrjFilePath="ProbeZPlc\ProbeZPlc.plcproj" TmcFilePath="ProbeZPlc\ProbeZPlc.tmc" ReloadTmc="true" AmsPort="851" FileArchiveSettings="#x000e" SymbolicMapping="true">
+			<Project GUID="{6CE991D0-B9B5-43AA-8E0E-BD1DFA7FDA4D}" Name="ProbeZPlc" PrjFilePath="ProbeZPlc\ProbeZPlc.plcproj" TmcFilePath="ProbeZPlc\ProbeZPlc.tmc" ReloadTmc="true" AmsPort="851" FileArchiveSettings="#x000e" CopyTmcToTarget="true" CopyTpyToTarget="false" SymbolicMapping="true">
 				<Instance Id="#x08502000" TcSmClass="TComPlcObjDef" KeepUnrestoredLinks="2" TmcPath="ProbeZPlc\ProbeZPlc.tmc">
 					<Name>ProbeZPlc Instance</Name>
 					<CLSID ClassFactory="TcPlc30">{08500001-0000-0000-F000-000000000064}</CLSID>
@@ -4206,6 +4211,8 @@ Bit 8 - 15 : reserved]]></Comment>
 							<MBoxUserCmdData>020003000c0000001b000000000000000000000000000000000000000000000020108014040000009600000056656c6f63697479206c6f6f7020696e74656772616c2074696d6500</MBoxUserCmdData>
 							<MBoxUserCmdData>020003000c0000001f000000000000000000000000000000000000000000000020108017040000000a000000506f736974696f6e206c6f6f702070726f706f7274696f6e616c206761696e00</MBoxUserCmdData>
 							<MBoxUserCmdData>02000300090000001200000000000000000000000000000000000000000000002010700301000000084d6f646573206f66206f7065726174696f6e00</MBoxUserCmdData>
+							<MBoxUserCmdData>020003000c00000013000000000000000000000000000000000000000000000020108031040000000000040056656c6f63697479206c696d69746174696f6e00</MBoxUserCmdData>
+							<MBoxUserCmdData>020003000a0000001100000000000000000000000000000000000000000000002010700b02000000ff7f546f72717565206c696d69746174696f6e00</MBoxUserCmdData>
 							<Pdo Name="FB Position" Index="#x1a00" Flags="#x0000" SyncMan="3">
 								<Entry Name="Position" BitLen="32" Index="#x6000" Sub="#x11">
 									<Type>UDINT</Type>

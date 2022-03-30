@@ -3,162 +3,228 @@
   <POU Name="MAIN" Id="{0d52fe34-3379-4937-8bfa-de5557a85529}" SpecialFunc="None">
     <Declaration><![CDATA[PROGRAM MAIN
 VAR
+	{attribute 'OPC.UA.DA' := '1'}
+	state: XY_Stage_State; (* XY Stage State *)
+	
+	// motor variables
 	axisX		: AXIS_REF;
 	axisY		: AXIS_REF;
+	fbXReset	: MC_Reset;
+	fbYReset	: MC_Reset;
 	fbXPower	: MC_Power;
 	fbYPower	: MC_Power;
 	fbXMoveAbs	: MC_MoveAbsolute;
 	fbYMoveAbs	: MC_MoveAbsolute;
-	
+	bReset		: BOOL := FALSE;
 	bXEnable	: BOOL := FALSE;
 	bYEnable	: BOOL := FALSE;
-	bXMove		: BOOL := FALSE;
-	bYMove		: BOOL := FALSE;
-	
+	bMove		: BOOL := FALSE;
 	fXTargetPos	: LREAL := 0;
 	fYTargetPos : LREAL := 0;
 	fXTargetVel : LREAL := 360;
 	fYTargetVel : LREAL := 360;
 	
+	// inputs
+	{attribute 'OPC.UA.DA' := '1'}
 	inputXPos	: LREAL := 0;
+	{attribute 'OPC.UA.DA' := '1'}
 	inputYPos	: LREAL := 0;
+	{attribute 'OPC.UA.DA' := '1'}
+	inputXVel	: LREAL := 360;
+	{attribute 'OPC.UA.DA' := '1'}
+	inputYVel	: LREAL := 360;
 	
-	state		: INT := 0;
+	// outputs
+	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
+	XPos		: LREAL; (* X position *)
+	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
+	YPos		: LREAL; (* Y position *)
+	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
+	XVel		: LREAL; (* X velocity *)
+	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
+	YVel		: LREAL; (* Y velocity *)
+	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
+	XLag		: LREAL := 0; (* X position lag *)
+	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
+	YLag		: LREAL := 0; (* Y position lag *)
+	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
+	XLagMax		: LREAL := 0; (* maximum X position lag (abs val) *)
+	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
+	YLagMax		: LREAL := 0; (* maximum Y position lag (abs val) *)
+	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
+	XErrorCode		: UDINT := 0; (* last error code for X *)
+	{attribute 'OPC.UA.DA' := '1'}
+	{attribute 'OPC.UA.DA.Access' := '1'}
+	YErrorCode		: UDINT := 0; (* last error code for Y *)
+	
 END_VAR
 ]]></Declaration>
     <Implementation>
       <ST><![CDATA[axisX.ReadStatus();
 axisY.ReadStatus();
 
-CASE state OF
-0: // init
-	bXEnable := FALSE;
-	bXMove := FALSE;
-	state := 1;
-1: // enable power to axes
-	bXEnable := TRUE;
-	bYEnable := TRUE;
-	IF fbXPower.Status = TRUE AND fbYPower.Status THEN
-		state := 2;
-	END_IF
-2: // set up move
-	IF fXTargetPos <> inputXPos OR fYTargetPos <> inputYPos THEN
-		fXTargetPos := inputXPos;
-		fYTargetPos := inputYPos;
-		bXMove := TRUE;
-		bYMove := TRUE;
-		state := 3;
-	END_IF
-3: // moving
-	IF fbXMoveAbs.Done = TRUE AND fbYMoveAbs.Done = TRUE THEN
-		bXMove := FALSE;
-		bYMove := FALSE;
-		state := 2;
-	END_IF
+// process input & output variables
+// these limits taken from Drive Manager
+inputXVel := MIN(inputXVel, 6744);
+inputYVel := MIN(inputYVel, 6744);
 
+XPos := axisX.NcToPlc.ActPos;
+YPos := axisY.NcToPlc.ActPos;
+XVel := axisX.NcToPlc.ActVelo;
+YVel := axisY.NcToPlc.ActVelo;
+XLag := axisX.NcToPlc.PosDiff;
+YLag := axisY.NcToPlc.PosDiff;
+XLagMax := MAX(ABS(XLag), XLagMax);
+YLagMax := MAX(ABS(YLag), YLagMax);
+
+IF axisX.Status.Error = TRUE OR axisY.Status.Error = TRUE OR
+	fbXPower.Error = TRUE OR fbYPower.Error = TRUE OR
+	fbXMoveAbs.Error = TRUE OR fbYMoveAbs.Error = TRUE THEN
+	XErrorCode := MAX(axisX.Status.ErrorID, fbXPower.ErrorID, fbXMoveAbs.ErrorID);
+	YErrorCode := MAX(axisY.Status.ErrorID, fbYPower.ErrorID, fbYMoveAbs.ErrorID);
+	state := XY_Stage_State.error;
+END_IF
+
+CASE state OF
+XY_Stage_State.off: // init (power off)
+	bReset := FALSE;
+	bXEnable := FALSE;
+	bYEnable := FALSE;
+	bMove := FALSE;
+XY_Stage_State.reset: // reset & enable power to axes
+	bReset := TRUE;
+	bXEnable := FALSE; // FIX temporary
+	bYEnable := TRUE;
+	XErrorCode := 0;
+	YErrorCode := 0;
+	IF fbXReset.Done = TRUE AND fbYReset.Done = TRUE AND
+		// FIX fbXPower.Status = TRUE AND fbYPower.Status = TRUE THEN
+		fbYPower.Status = TRUE THEN
+		bReset := FALSE;
+		state := XY_Stage_State.ready;
+	END_IF
+XY_Stage_State.ready: // set up move
+	fXTargetPos := inputXPos;
+	fYTargetPos := inputYPos;
+	fXTargetVel := inputXVel;
+	fYTargetVel := inputYVel;
+	bMove := TRUE;
+	state := XY_Stage_State.moving;
+XY_Stage_State.moving: // moving
+	// FIX IF fbXMoveAbs.Done = TRUE AND fbYMoveAbs.Done = TRUE THEN
+	IF fbYMoveAbs.Done = TRUE THEN
+		bMove := FALSE;
+		state := XY_Stage_State.ready;
+	END_IF
+XY_Stage_State.error: // error
+	RETURN; // lock into this state
 END_CASE
+
+// function blocks, execution controlled by their execute bits
+fbXReset(Axis := axisX, Execute := bReset);
+fbYReset(Axis := axisY, Execute := bReset);
 
 fbXPower(
 	Axis := axisX,
 	Enable := bXEnable,
 	Enable_Positive := bXEnable,
 	Enable_Negative := bXEnable,
-	Override := 100,
-	BufferMode:= ,
-	Options:= ,
-	Status=> ,
-	Busy=> ,
-	Active=> ,
-	Error=> ,
-	ErrorID=> );
-	
+	Override := 100);
 fbYPower(
 	Axis := axisY,
 	Enable := bYEnable,
 	Enable_Positive := bYEnable,
 	Enable_Negative := bYEnable,
-	Override := 100,
-	BufferMode:= ,
-	Options:= ,
-	Status=> ,
-	Busy=> ,
-	Active=> ,
-	Error=> ,
-	ErrorID=> );
+	Override := 100);
 	
 fbXMoveAbs(
 	Axis:= axisX,
-	Execute:= bXMove,
+	Execute:= bMove,
 	Position:= fXTargetPos,
 	Velocity:= fXTargetVel,
 	Acceleration:= ,
 	Deceleration:= ,
-	Jerk:= ,
-	BufferMode:= ,
-	Options:= ,
-	Done=> ,
-	Busy=> ,
-	Active=> ,
-	CommandAborted=> ,
-	Error=> ,
-	ErrorID=> );
-	
+	Jerk:= );
 fbYMoveAbs(
 	Axis:= axisY,
-	Execute:= bYMove,
+	Execute:= bMove,
 	Position:= fYTargetPos,
 	Velocity:= fYTargetVel,
 	Acceleration:= ,
 	Deceleration:= ,
-	Jerk:= ,
-	BufferMode:= ,
-	Options:= ,
-	Done=> ,
-	Busy=> ,
-	Active=> ,
-	CommandAborted=> ,
-	Error=> ,
-	ErrorID=> );
+	Jerk:= );
 ]]></ST>
     </Implementation>
     <LineIds Name="MAIN">
       <LineId Id="205" Count="1" />
+      <LineId Id="300" Count="1" />
+      <LineId Id="410" Count="0" />
+      <LineId Id="409" Count="0" />
+      <LineId Id="411" Count="0" />
+      <LineId Id="407" Count="0" />
+      <LineId Id="263" Count="0" />
+      <LineId Id="366" Count="5" />
+      <LineId Id="373" Count="0" />
+      <LineId Id="387" Count="0" />
+      <LineId Id="386" Count="0" />
+      <LineId Id="403" Count="1" />
+      <LineId Id="388" Count="0" />
+      <LineId Id="402" Count="0" />
+      <LineId Id="405" Count="0" />
+      <LineId Id="389" Count="0" />
       <LineId Id="208" Count="0" />
       <LineId Id="137" Count="0" />
-      <LineId Id="143" Count="2" />
-      <LineId Id="147" Count="0" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="324" Count="0" />
+      <LineId Id="144" Count="0" />
+      <LineId Id="308" Count="0" />
+      <LineId Id="320" Count="0" />
       <LineId Id="146" Count="0" />
+      <LineId Id="326" Count="0" />
       <LineId Id="149" Count="0" />
       <LineId Id="216" Count="0" />
-      <LineId Id="189" Count="2" />
+      <LineId Id="412" Count="1" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="329" Count="0" />
+      <LineId Id="337" Count="0" />
+      <LineId Id="406" Count="0" />
+      <LineId Id="190" Count="1" />
       <LineId Id="154" Count="0" />
-      <LineId Id="209" Count="1" />
+      <LineId Id="210" Count="0" />
       <LineId Id="260" Count="0" />
-      <LineId Id="214" Count="0" />
-      <LineId Id="259" Count="0" />
-      <LineId Id="215" Count="0" />
-      <LineId Id="199" Count="1" />
+      <LineId Id="311" Count="1" />
+      <LineId Id="214" Count="1" />
+      <LineId Id="200" Count="0" />
       <LineId Id="193" Count="0" />
-      <LineId Id="201" Count="0" />
+      <LineId Id="338" Count="0" />
       <LineId Id="224" Count="0" />
       <LineId Id="195" Count="1" />
-      <LineId Id="188" Count="0" />
+      <LineId Id="384" Count="1" />
       <LineId Id="140" Count="0" />
+      <LineId Id="334" Count="0" />
+      <LineId Id="331" Count="0" />
+      <LineId Id="330" Count="0" />
+      <LineId Id="332" Count="0" />
       <LineId Id="28" Count="0" />
       <LineId Id="27" Count="0" />
-      <LineId Id="30" Count="4" />
-      <LineId Id="36" Count="5" />
+      <LineId Id="30" Count="3" />
       <LineId Id="35" Count="0" />
-      <LineId Id="227" Count="0" />
-      <LineId Id="229" Count="11" />
+      <LineId Id="229" Count="4" />
       <LineId Id="228" Count="0" />
       <LineId Id="42" Count="0" />
       <LineId Id="44" Count="5" />
       <LineId Id="43" Count="0" />
-      <LineId Id="51" Count="7" />
       <LineId Id="50" Count="0" />
-      <LineId Id="241" Count="0" />
-      <LineId Id="243" Count="14" />
+      <LineId Id="243" Count="6" />
       <LineId Id="242" Count="0" />
       <LineId Id="68" Count="0" />
     </LineIds>
