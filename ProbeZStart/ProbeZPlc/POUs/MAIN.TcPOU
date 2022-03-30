@@ -126,6 +126,8 @@ XY_Stage_State.reset: // reset & enable power to axes
 	bMove := FALSE;
 	XErrorCode := 0;
 	YErrorCode := 0;
+	XLagMax := 0;
+	YLagMax := 0;
 	IF fbXReset.Done = TRUE AND fbYReset.Done = TRUE AND
 		fbXPower.Status = TRUE AND fbYPower.Status = TRUE THEN
 		bReset := FALSE;
@@ -220,6 +222,7 @@ fbYMoveAbs(
       <LineId Id="216" Count="0" />
       <LineId Id="441" Count="0" />
       <LineId Id="412" Count="1" />
+      <LineId Id="475" Count="1" />
       <LineId Id="189" Count="0" />
       <LineId Id="329" Count="0" />
       <LineId Id="406" Count="0" />
